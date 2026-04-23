@@ -9,60 +9,23 @@ import PaymentVerify from '../views/PaymentVerify.vue';
 import { useAuthStore } from '../stores/auth';
 
 const routes = [
-  { 
-    path: '/', 
-    redirect: '/login' 
-  },
-  { 
-    path: '/login', 
-    name: 'Login',
-    component: Login,
-    meta: { isPublic: true }
-  },
-  { 
-    path: '/register', 
-    name: 'Register',
-    component: Register,
-    meta: { isPublic: true }
-  },
-  { 
-    path: '/verify-otp', 
-    name: 'VerifyOtp',
-    component: VerifyOtp,
-    meta: { isPublic: true }
-  },
-  { 
-    path: '/dashboard', 
-    name: 'Dashboard',
-    component: Dashboard, 
-    meta: { requiresAuth: true } 
-  },
-  { 
-    path: '/payment', 
-    name: 'Payment',
-    component: Payment, 
-    meta: { requiresAuth: true } 
-  },
+  { path: '/', redirect: '/login' },
+  { path: '/login', name: 'Login', component: Login, meta: { isPublic: true } },
+  { path: '/register', name: 'Register', component: Register, meta: { isPublic: true } },
+  { path: '/verify-otp', name: 'VerifyOtp', component: VerifyOtp, meta: { isPublic: true } },
+  { path: '/dashboard', name: 'Dashboard', component: Dashboard, meta: { requiresAuth: true } },
+  { path: '/payment', name: 'Payment', component: Payment, meta: { requiresAuth: true } },
   { 
     path: '/payment-verify', 
-    name: 'PaymentVerify',
+    name: 'PaymentVerify', 
     component: PaymentVerify,
-    // Alias handles the gateway potentially adding a trailing slash
-    alias: '/payment-verify/',
-    // Explicitly set BOTH flags to ensure no ambiguity
-    meta: { isPublic: true, requiresAuth: false } 
+    // Sensitive to the external gateway's behavior
+    alias: ['/payment-verify/'],
+    meta: { isPublic: true } 
   },
-  { 
-    path: '/settings', 
-    name: 'Settings',
-    component: Settings, 
-    meta: { requiresAuth: true } 
-  },
-  // Catch-all to prevent undefined paths from looping
-  {
-    path: '/:pathMatch(.*)*',
-    redirect: '/login'
-  }
+  { path: '/settings', name: 'Settings', component: Settings, meta: { requiresAuth: true } },
+  // TEMPORARILY: Remove the redirect for unknown paths to see if you get a blank page instead of login
+  { path: '/:pathMatch(.*)*', component: { template: '<div>Route Not Found</div>' } }
 ];
 
 const router = createRouter({
@@ -73,32 +36,26 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
   
-  // 1. Initialize auth state from localStorage if needed
   if (!authStore.token && localStorage.getItem('token')) {
     authStore.initializeAuth();
   }
 
-  // 2. CHECK PUBLIC STATUS FIRST
-  // We check if 'isPublic' is explicitly true on the route or any parent route
-  const isPublic = to.matched.some(record => record.meta.isPublic === true);
+  // LOGGING: Add this temporarily to your console to see what the router thinks is happening
+  console.log('Navigating to:', to.path, 'Is Public:', to.meta.isPublic);
 
-  if (isPublic) {
-    // If it's public, allow access immediately and STOP execution of this guard
+  // If the path contains our keyword, force it to be public regardless of metadata
+  if (to.path.includes('payment-verify')) {
     return next();
   }
 
-  // 3. CHECK AUTHENTICATION
-  const requiresAuth = to.matched.some(record => record.meta.requiresAuth === true);
-
-  if (requiresAuth && !authStore.isAuthenticated) {
-    // Redirect to login but keep the intended destination in the query
-    return next({ 
-      path: '/login', 
-      query: { redirect: to.fullPath } 
-    });
+  if (to.meta.isPublic) {
+    return next();
   }
 
-  // 4. DEFAULT FALLBACK
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    return next({ path: '/login', query: { redirect: to.fullPath } });
+  }
+
   next();
 });
 
