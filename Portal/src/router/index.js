@@ -15,7 +15,7 @@ const routes = [
   { path: '/verify-otp', component: VerifyOtp },
   { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/payment', component: Payment, meta: { requiresAuth: true } },
-  { path: '/payment-verify', component: PaymentVerify },
+  { path: '/payment-verify', component: PaymentVerify,meta: { isPublic: true }  },
   { path: '/settings', component: Settings, meta: { requiresAuth: true } },
 ];
 
@@ -26,13 +26,17 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
-  // Ensure state is initialized
+  
   if (!authStore.token && localStorage.getItem('token')) {
     authStore.initializeAuth();
   }
-  
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next('/login');
+
+  // Check if the route specifically requires authentication
+  const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
+
+  if (requiresAuth && !authStore.isAuthenticated) {
+    // Redirect to login, but save the intended destination
+    next({ name: 'Login', query: { redirect: to.fullPath } });
   } else {
     next();
   }
