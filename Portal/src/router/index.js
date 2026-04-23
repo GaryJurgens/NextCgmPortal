@@ -47,7 +47,9 @@ const routes = [
     path: '/payment-verify', 
     name: 'PaymentVerify',
     component: PaymentVerify,
-    // Explicitly allow access without a token
+    // Alias handles the gateway potentially adding a trailing slash
+    alias: '/payment-verify/',
+    // Explicitly set BOTH flags to ensure no ambiguity
     meta: { isPublic: true, requiresAuth: false } 
   },
   { 
@@ -56,7 +58,7 @@ const routes = [
     component: Settings, 
     meta: { requiresAuth: true } 
   },
-  // Catch-all route to prevent broken paths from looping to login
+  // Catch-all to prevent undefined paths from looping
   {
     path: '/:pathMatch(.*)*',
     redirect: '/login'
@@ -71,28 +73,33 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
   
-  // Initialize auth state if a token exists in storage 
+  // 1. Initialize auth state from localStorage if needed
   if (!authStore.token && localStorage.getItem('token')) {
     authStore.initializeAuth();
   }
 
-  // Check metadata for the current route and its parents
-  const isPublic = to.matched.some(record => record.meta.isPublic);
-  const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
+  // 2. CHECK PUBLIC STATUS FIRST
+  // We check if 'isPublic' is explicitly true on the route or any parent route
+  const isPublic = to.matched.some(record => record.meta.isPublic === true);
 
   if (isPublic) {
-    // If the route is marked public (like PaymentVerify), proceed 
-    next();
-  } else if (requiresAuth && !authStore.isAuthenticated) {
-    // If it requires auth and user isn't logged in, go to login 
-    next({ 
+    // If it's public, allow access immediately and STOP execution of this guard
+    return next();
+  }
+
+  // 3. CHECK AUTHENTICATION
+  const requiresAuth = to.matched.some(record => record.meta.requiresAuth === true);
+
+  if (requiresAuth && !authStore.isAuthenticated) {
+    // Redirect to login but keep the intended destination in the query
+    return next({ 
       path: '/login', 
       query: { redirect: to.fullPath } 
     });
-  } else {
-    // Otherwise, continue as normal
-    next();
   }
+
+  // 4. DEFAULT FALLBACK
+  next();
 });
 
 export default router;
